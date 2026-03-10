@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+venv/
+env/
+.venv/
+
+# ChromaDB & generated data
+backend/chroma_db/
+backend/uploads/
+
+# Node.js
+frontend/node_modules/
+frontend/dist/
+frontend/package-lock.json
+
+# Environment variables
+.env
+.env.*
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
