@@ -33,3 +33,6 @@ frontend/package-lock.json
 # OS
 .DS_Store
 Thumbs.db
+
+# files to ignore
+Documentation.docx
