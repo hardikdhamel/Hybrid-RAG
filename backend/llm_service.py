@@ -22,6 +22,7 @@ def build_prompt(query: str, context_chunks: List[dict]) -> str:
     return f"""You are a helpful AI assistant. Answer the user's question based ONLY on the provided context below. 
 If the context does not contain enough information to answer, say so clearly. Do not make up information.
 Do NOT include any source citations or references like [Source 1] in your answer.
+When writing mathematical formulas, use $$ for display math and $ for inline math. For example: $$E = mc^2$$ or inline $x^2$. Never use \\[ \\] or \\( \\) delimiters for math.
 
 CONTEXT:
 {context_str}

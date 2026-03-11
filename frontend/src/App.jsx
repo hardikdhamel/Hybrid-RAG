@@ -1,15 +1,33 @@
 import { useState, useRef, useEffect } from 'react';
 import { FiUpload, FiSend, FiFile, FiTrash2, FiInfo, FiDatabase, FiCpu, FiSearch, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import remarkGfm from 'remark-gfm';
+import 'katex/dist/katex.min.css';
 import { uploadDocument, queryDocuments, getStats, resetSystem, healthCheck } from './api';
 import './App.css';
+
+function formatMath(text) {
+  if (!text) return text;
+  // Convert \[ ... \] to $$...$$ (display math)
+  let result = text.replace(/\\\[([\s\S]*?)\\\]/g, (_, p1) => `$$${p1}$$`);
+  // Convert \( ... \) to $...$ (inline math)
+  result = result.replace(/\\\(([\s\S]*?)\\\)/g, (_, p1) => `$${p1}$`);
+  // Convert standalone [ formula ] on its own line to $$formula$$ (display math)
+  result = result.replace(/^\s*\[\s*(.+?)\s*\]\s*$/gm, (_, p1) => `$$${p1.trim()}$$`);
+  return result;
+}
 
 function AssistantMessage({ msg }) {
   const [sourcesOpen, setSourcesOpen] = useState(false);
 
   return (
     <div className="message-bubble assistant-bubble">
-      <ReactMarkdown>{msg.content}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkMath, remarkGfm]}
+        rehypePlugins={[rehypeKatex]}
+      >{formatMath(msg.content)}</ReactMarkdown>
       {msg.sources && msg.sources.length > 0 && (
         <div className="sources-section">
           <button className="sources-toggle" onClick={() => setSourcesOpen(!sourcesOpen)}>
@@ -61,17 +79,12 @@ function App() {
   const [serverOnline, setServerOnline] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
     checkHealth();
     fetchStats();
   }, []);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
 
   const checkHealth = async () => {
     try {
@@ -280,7 +293,10 @@ function App() {
               )}
               {msg.type === 'system' && (
                 <div className="message-bubble system-bubble">
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkMath, remarkGfm]}
+                    rehypePlugins={[rehypeKatex]}
+                  >{msg.content}</ReactMarkdown>
                 </div>
               )}
               {msg.type === 'error' && (
@@ -301,7 +317,6 @@ function App() {
             </div>
           )}
 
-          <div ref={messagesEndRef} />
         </div>
 
         <form className="input-container" onSubmit={handleQuery}>

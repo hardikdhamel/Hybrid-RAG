@@ -328,26 +328,133 @@
   border-bottom-left-radius: 4px;
 }
 
-.assistant-bubble p { margin-bottom: 8px; }
+.assistant-bubble p { margin-bottom: 10px; }
 .assistant-bubble p:last-child { margin-bottom: 0; }
-.assistant-bubble ul, .assistant-bubble ol { margin-left: 20px; margin-bottom: 8px; }
+
+/* Headings */
+.assistant-bubble h1,
+.assistant-bubble h2,
+.assistant-bubble h3,
+.assistant-bubble h4 {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.assistant-bubble h1 { font-size: 1.3rem; }
+.assistant-bubble h2 { font-size: 1.15rem; }
+.assistant-bubble h3 { font-size: 1.05rem; }
+.assistant-bubble h4 { font-size: 0.95rem; }
+.assistant-bubble h1:first-child,
+.assistant-bubble h2:first-child,
+.assistant-bubble h3:first-child { margin-top: 0; }
+
+/* Lists */
+.assistant-bubble ul, .assistant-bubble ol {
+  margin-left: 24px;
+  margin-bottom: 10px;
+  padding-left: 0;
+}
+.assistant-bubble li {
+  margin-bottom: 4px;
+  line-height: 1.7;
+}
+.assistant-bubble li > p { margin-bottom: 4px; }
+.assistant-bubble ul ul, .assistant-bubble ol ol,
+.assistant-bubble ul ol, .assistant-bubble ol ul {
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+/* Inline code */
 .assistant-bubble code {
   background: var(--bg-primary);
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 0.85rem;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  color: #e2e8f0;
 }
+
+/* Code blocks */
 .assistant-bubble pre {
   background: var(--bg-primary);
-  padding: 12px;
+  padding: 14px 16px;
   border-radius: 8px;
   overflow-x: auto;
-  margin: 8px 0;
+  margin: 10px 0;
+  border: 1px solid var(--border);
 }
 .assistant-bubble pre code {
   background: none;
   padding: 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
 }
+
+/* Blockquotes */
+.assistant-bubble blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 10px 0;
+  padding: 8px 16px;
+  background: rgba(59, 130, 246, 0.05);
+  border-radius: 0 8px 8px 0;
+  color: var(--text-secondary);
+}
+.assistant-bubble blockquote p { margin-bottom: 0; }
+
+/* Tables */
+.assistant-bubble table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 0.88rem;
+}
+.assistant-bubble th {
+  background: var(--bg-primary);
+  color: var(--accent);
+  font-weight: 600;
+  text-align: left;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+}
+.assistant-bubble td {
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+}
+.assistant-bubble tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* Horizontal rules */
+.assistant-bubble hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 14px 0;
+}
+
+/* Strong & emphasis */
+.assistant-bubble strong { color: #f1f5f9; font-weight: 600; }
+.assistant-bubble em { color: var(--text-secondary); font-style: italic; }
+
+/* Links */
+.assistant-bubble a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.assistant-bubble a:hover { text-decoration: underline; }
+
+/* KaTeX math styling for dark theme */
+.assistant-bubble .katex { color: #e2e8f0; font-size: 1.05em; }
+.assistant-bubble .katex-display {
+  margin: 12px 0;
+  padding: 12px 16px;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+.assistant-bubble .katex-display > .katex { font-size: 1.15em; }
 
 .system-bubble {
   background: rgba(59, 130, 246, 0.1);

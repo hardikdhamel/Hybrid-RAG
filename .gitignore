@@ -33,6 +33,38 @@ frontend/package-lock.json
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# files to ignore
-Documentation.docx
+# LibreOffice / MS Office lock files
+.~lock.*#
+~$*
+
+# Documentation & generated docs (not needed in repo)
+DOCUMENTATION.md
+DOCUMENTATION.docx
+PROJECT_DEEP_DIVE.md
+PROJECT_DEEP_DIVE.docx
+*.docx
+*.doc
+*.pdf
+
+# Logs
+*.log
+*.log.*
+logs/
+
+# Python test / coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+
+# Temporary / backup files
+*.bak
+*.tmp
+*.temp
+*.orig
