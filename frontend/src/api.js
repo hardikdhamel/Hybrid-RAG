@@ -4,7 +4,7 @@ const API_BASE = 'http://localhost:8000';
 
 const api = axios.create({
   baseURL: API_BASE,
-  timeout: 180000,
+  timeout: 600000, // 10 minutes — large PDFs need time for extraction + embedding
 });
 
 export const uploadDocument = async (file, onProgress) => {

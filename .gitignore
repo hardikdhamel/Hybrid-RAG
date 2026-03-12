@@ -41,9 +41,9 @@ desktop.ini
 
 # Documentation & generated docs (not needed in repo)
 DOCUMENTATION.md
-DOCUMENTATION.docx
 PROJECT_DEEP_DIVE.md
-PROJECT_DEEP_DIVE.docx
+project-libraries.md
+CHUNK_CALCULATION.md
 *.docx
 *.doc
 *.pdf

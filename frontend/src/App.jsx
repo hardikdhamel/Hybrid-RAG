@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { FiUpload, FiSend, FiFile, FiTrash2, FiInfo, FiDatabase, FiCpu, FiSearch, FiChevronDown, FiChevronUp } from 'react-icons/fi';
+import { FiUpload, FiSend, FiFile, FiTrash2, FiInfo, FiDatabase, FiCpu, FiSearch, FiChevronDown, FiChevronUp, FiCheck, FiX, FiLoader } from 'react-icons/fi';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -74,7 +74,6 @@ function App() {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [stats, setStats] = useState({ vector_count: 0, bm25_count: 0, ingested_files: [] });
   const [serverOnline, setServerOnline] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -108,24 +107,63 @@ function App() {
     const file = e.target.files[0];
     if (!file) return;
 
+    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+    const uploadMsgId = Date.now();
+
     setUploading(true);
-    setUploadProgress(0);
+
+    // Add inline progress message to chat
+    setMessages((prev) => [
+      ...prev,
+      {
+        type: 'upload-progress',
+        id: uploadMsgId,
+        filename: file.name,
+        fileSize: fileSizeMB,
+        status: 'uploading',
+        progress: 0,
+      },
+    ]);
+
+    const updateUploadMsg = (updates) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === uploadMsgId ? { ...msg, ...updates } : msg
+        )
+      );
+    };
 
     try {
       const result = await uploadDocument(file, (progress) => {
-        setUploadProgress(progress);
+        updateUploadMsg({ progress, status: progress >= 100 ? 'processing' : 'uploading' });
       });
 
+      // Replace progress message with success message
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === uploadMsgId
+            ? {
+              type: 'upload-success',
+              id: uploadMsgId,
+              filename: result.filename,
+              chunks: result.chunks,
+            }
+            : msg
+        )
+      );
       fetchStats();
     } catch (err) {
       const detail = err.response?.data?.detail || err.message;
-      setMessages((prev) => [
-        ...prev,
-        { type: 'error', content: `Upload failed: ${detail}` },
-      ]);
+      // Replace progress message with error
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === uploadMsgId
+            ? { type: 'error', id: uploadMsgId, content: `Upload failed: ${detail}` }
+            : msg
+        )
+      );
     } finally {
       setUploading(false);
-      setUploadProgress(0);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -166,7 +204,7 @@ function App() {
     if (!window.confirm('Are you sure you want to clear all indexed data?')) return;
     try {
       await resetSystem();
-      setMessages([{ type: 'system', content: 'All data has been cleared.' }]);
+      setMessages([{ type: 'clear-success' }]);
       fetchStats();
     } catch (err) {
       setMessages((prev) => [
@@ -230,7 +268,7 @@ function App() {
 
         <div className="sidebar-actions">
           <button className="btn btn-upload" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-            <FiUpload /> {uploading ? `Uploading ${uploadProgress}%` : 'Upload Document'}
+            <FiUpload /> {uploading ? 'Processing...' : 'Upload Document'}
           </button>
           <input
             ref={fileInputRef}
@@ -276,7 +314,7 @@ function App() {
                 </div>
               </div>
               <button className="btn btn-upload welcome-upload" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                <FiUpload /> {uploading ? `Uploading ${uploadProgress}%` : 'Upload Your First Document'}
+                <FiUpload /> {uploading ? 'Processing...' : 'Upload Your First Document'}
               </button>
             </div>
           )}
@@ -302,6 +340,61 @@ function App() {
               {msg.type === 'error' && (
                 <div className="message-bubble error-bubble">
                   <p>{msg.content}</p>
+                </div>
+              )}
+              {msg.type === 'clear-success' && (
+                <div className="message-bubble clear-success-card">
+                  <div className="clear-success-icon-wrap">
+                    <FiTrash2 />
+                  </div>
+                  <div className="clear-success-info">
+                    <strong>All data has been cleared successfully.</strong>
+                    <span className="clear-success-desc">All uploaded files, vector embeddings, and BM25 indexes have been removed.</span>
+                  </div>
+                  <button
+                    className="btn btn-upload clear-success-upload-btn"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    <FiUpload /> {uploading ? 'Processing...' : 'Upload a New Document'}
+                  </button>
+                </div>
+              )}
+              {msg.type === 'upload-progress' && (
+                <div className="message-bubble upload-inline-card">
+                  <div className="upload-inline-header">
+                    <FiFile className="upload-inline-file-icon" />
+                    <div className="upload-inline-info">
+                      <span className="upload-inline-filename">{msg.filename}</span>
+                      <span className="upload-inline-size">{msg.fileSize} MB</span>
+                    </div>
+                  </div>
+                  <div className="upload-inline-progress">
+                    <div className="upload-inline-bar-bg">
+                      <div
+                        className={`upload-inline-bar-fill ${msg.status === 'processing' ? 'processing' : ''}`}
+                        style={{ width: msg.status === 'processing' ? '100%' : `${msg.progress}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="upload-inline-status">
+                    <span className="upload-pulse-dot" />
+                    <span>{msg.status === 'processing'
+                      ? 'Processing — extracting text, generating embeddings & indexing...'
+                      : `Uploading to server... ${msg.progress}%`}
+                    </span>
+                  </div>
+                </div>
+              )}
+              {msg.type === 'upload-success' && (
+                <div className="message-bubble upload-success-card">
+                  <div className="upload-success-icon-wrap">
+                    <FiCheck />
+                  </div>
+                  <div className="upload-success-info">
+                    <strong>{msg.filename}</strong> uploaded successfully
+                    <span className="upload-success-chunks">{msg.chunks} chunks indexed</span>
+                  </div>
                 </div>
               )}
             </div>

@@ -29,6 +29,14 @@ class VectorStore:
         """Add document chunks with embeddings to the vector store."""
         print(f"[VECTOR_STORE] Generating embeddings for {len(texts)} chunks...")
         embeddings = await get_embeddings_batch(texts)
+
+        # If some chunks were skipped during embedding, align texts/metadatas
+        # get_embeddings_batch returns only successful embeddings in order
+        if len(embeddings) < len(texts):
+            print(f"[VECTOR_STORE] NOTE: {len(texts) - len(embeddings)} chunks skipped, storing {len(embeddings)} chunks")
+            texts = texts[:len(embeddings)]
+            metadatas = metadatas[:len(embeddings)]
+
         ids = [f"{doc_name}_{uuid.uuid4().hex[:8]}" for _ in texts]
 
         # ChromaDB has a batch limit, so add in batches of 100

@@ -27,7 +27,31 @@ app.add_middleware(
 # Initialize the RAG engine
 engine = HybridRAGEngine()
 
+
+@app.on_event("startup")
+async def warmup_ollama():
+    """Warm up Ollama embedding model on server start to avoid 500 errors on first upload."""
+    from config import OLLAMA_BASE_URL, EMBEDDING_MODEL
+    import httpx
+
+    print(f"\n[WARMUP] Warming up Ollama embedding model '{EMBEDDING_MODEL}'...")
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                f"{OLLAMA_BASE_URL}/api/embeddings",
+                json={"model": EMBEDDING_MODEL, "prompt": "warmup test"},
+            )
+            if response.status_code == 200:
+                print(f"[WARMUP] ✓ Ollama embedding model is ready!")
+            else:
+                print(f"[WARMUP] ⚠ Ollama returned status {response.status_code} — model may need to be pulled")
+                print(f"[WARMUP]   Run: ollama pull {EMBEDDING_MODEL}")
+    except Exception as e:
+        print(f"[WARMUP] ⚠ Could not warm up Ollama: {type(e).__name__}: {e}")
+        print(f"[WARMUP]   Make sure Ollama is running and '{EMBEDDING_MODEL}' is pulled")
+
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".md", ".csv"}
+MAX_UPLOAD_SIZE = 100 * 1024 * 1024  # 100 MB
 
 
 class QueryRequest(BaseModel):
@@ -71,7 +95,17 @@ async def upload_document(file: UploadFile = File(...)):
     file_path = os.path.join(UPLOAD_DIR, safe_filename)
 
     content = await file.read()
-    print(f"[UPLOAD] File size: {len(content)} bytes")
+    file_size = len(content)
+    file_size_mb = round(file_size / (1024 * 1024), 2)
+    print(f"[UPLOAD] File size: {file_size} bytes ({file_size_mb} MB)")
+
+    # Validate file size (max 100 MB)
+    if file_size > MAX_UPLOAD_SIZE:
+        print(f"[UPLOAD] REJECTED — file too large: {file_size_mb} MB (max: 100 MB)")
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large ({file_size_mb} MB). Maximum allowed size is 100 MB.",
+        )
 
     with open(file_path, "wb") as f:
         f.write(content)
