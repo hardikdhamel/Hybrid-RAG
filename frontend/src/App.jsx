@@ -289,19 +289,7 @@ function App() {
           </div>
         </div>
 
-        <div className="sidebar-section">
-          <h3><FiInfo /> Models</h3>
-          <div className="model-info">
-            <div className="model-tag">
-              <span className="model-label">LLM</span>
-              <span className="model-name">gpt-oss:120b-cloud</span>
-            </div>
-            <div className="model-tag">
-              <span className="model-label">Embed</span>
-              <span className="model-name">nomic-embed-text</span>
-            </div>
-          </div>
-        </div>
+
 
         <div className="sidebar-actions">
           <button className="btn btn-upload" onClick={() => fileInputRef.current?.click()} disabled={uploading}>

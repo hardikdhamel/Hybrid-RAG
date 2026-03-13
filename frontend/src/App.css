@@ -96,7 +96,7 @@
 }
 
 .file-list {
-  max-height: 150px;
+  max-height: 400px;
   overflow-y: auto;
 }
 
