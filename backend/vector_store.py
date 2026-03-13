@@ -25,17 +25,32 @@ class VectorStore:
 
     async def add_documents(
         self, texts: List[str], metadatas: List[dict], doc_name: str
-    ):
+    ) -> dict:
         """Add document chunks with embeddings to the vector store."""
         print(f"[VECTOR_STORE] Generating embeddings for {len(texts)} chunks...")
         embeddings = await get_embeddings_batch(texts)
 
-        # If some chunks were skipped during embedding, align texts/metadatas
-        # get_embeddings_batch returns only successful embeddings in order
-        if len(embeddings) < len(texts):
-            print(f"[VECTOR_STORE] NOTE: {len(texts) - len(embeddings)} chunks skipped, storing {len(embeddings)} chunks")
-            texts = texts[:len(embeddings)]
-            metadatas = metadatas[:len(embeddings)]
+        valid_texts = []
+        valid_metadatas = []
+        valid_embeddings = []
+
+        for text, meta, emb in zip(texts, metadatas, embeddings):
+            if emb is not None:
+                valid_texts.append(text)
+                valid_metadatas.append(meta)
+                valid_embeddings.append(emb)
+
+        skipped_count = len(texts) - len(valid_texts)
+        if skipped_count > 0:
+            print(f"[VECTOR_STORE] NOTE: {skipped_count} chunks skipped, storing {len(valid_texts)} chunks")
+
+        texts = valid_texts
+        metadatas = valid_metadatas
+        embeddings = valid_embeddings
+
+        if not texts:
+            print("[VECTOR_STORE] WARNING: No valid chunks to store.")
+            return {"successful": 0, "skipped": skipped_count}
 
         ids = [f"{doc_name}_{uuid.uuid4().hex[:8]}" for _ in texts]
 
@@ -51,6 +66,7 @@ class VectorStore:
                 metadatas=metadatas[i:end],
             )
         print(f"[VECTOR_STORE] All {len(texts)} chunks stored in ChromaDB (total: {self._collection.count()})")
+        return {"successful": len(texts), "skipped": skipped_count}
 
     async def search(self, query: str, top_k: int = TOP_K_VECTOR) -> List[dict]:
         """Perform semantic search and return results with scores."""

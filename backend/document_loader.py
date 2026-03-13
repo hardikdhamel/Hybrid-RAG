@@ -50,28 +50,44 @@ def extract_text(file_path: str) -> str:
         raise ValueError(f"Unsupported file type: {ext}")
 
 
-def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> List[dict]:
-    """Split text into overlapping chunks."""
+def chunk_text(text: str, chunk_size_chars: int = 2500, overlap_chars: int = 250) -> List[dict]:
+    """Split text into overlapping chunks based on character length."""
     chunks = []
-    words = text.split()
-    print(f"[CHUNKER] Total words: {len(words)}, chunk_size={chunk_size}, overlap={overlap}")
-    if not words:
-        print("[CHUNKER] No words found — returning empty")
+    print(f"[CHUNKER] Total characters: {len(text)}, chunk_size_chars={chunk_size_chars}, overlap_chars={overlap_chars}")
+    if not text.strip():
+        print("[CHUNKER] No text found — returning empty")
         return chunks
 
     start = 0
     chunk_id = 0
-    while start < len(words):
-        end = start + chunk_size
-        chunk_words = words[start:end]
-        chunk_text_str = " ".join(chunk_words)
+    text_len = len(text)
+    
+    while start < text_len:
+        end = start + chunk_size_chars
+        
+        # If we're not at the end of the text, try to find a natural break (space or newline)
+        if end < text_len:
+            # Look for the last space/newline within the last 10% of the chunk
+            # to avoid cutting words in half
+            search_start = max(start, end - int(chunk_size_chars * 0.1))
+            last_space = max(text.rfind(' ', search_start, end), 
+                             text.rfind('\n', search_start, end))
+            
+            if last_space != -1:
+                end = last_space + 1  # Include the space
+                
+        chunk_text_str = text[start:end]
         if chunk_text_str.strip():
             chunks.append({
                 "id": chunk_id,
-                "text": chunk_text_str,
+                "text": chunk_text_str.strip(),
             })
             chunk_id += 1
-        start += chunk_size - overlap
+            
+        start = end - overlap_chars
+        # Prevent infinite loops if overlap is somehow larger than the chunk advancement
+        if start <= end - chunk_size_chars:
+            start = end
 
     print(f"[CHUNKER] Generated {len(chunks)} chunks")
     return chunks

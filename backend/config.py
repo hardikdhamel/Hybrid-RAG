@@ -4,6 +4,7 @@ import os
 
 # Ollama settings
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_EMBEDDING_BASE_URL = os.getenv("OLLAMA_EMBEDDING_BASE_URL", "https://e92f-34-32-246-61.ngrok-free.app")
 LLM_MODEL = os.getenv("LLM_MODEL", "gpt-oss:120b-cloud")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text:latest")
 

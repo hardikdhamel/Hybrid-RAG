@@ -7,7 +7,7 @@ from typing import List
 from vector_store import VectorStore
 from bm25_store import BM25Store
 from reranker import reciprocal_rank_fusion
-from llm_service import generate_response, generate_response_stream
+from llm_service import generate_response, generate_response_stream, ask_llm_json
 from document_loader import extract_text, chunk_text
 from config import CHUNK_SIZE, CHUNK_OVERLAP, FINAL_TOP_K, UPLOAD_DIR, CHROMA_PERSIST_DIR
 
@@ -22,11 +22,24 @@ class HybridRAGEngine:
         self.bm25_store = BM25Store()
         self._ingested_files: List[str] = self._load_ingested_files()
 
-    def _load_ingested_files(self) -> List[str]:
+    def _load_ingested_files(self) -> List[dict]:
         """Load previously ingested file names from disk."""
         if os.path.exists(INGESTED_FILES_PATH):
-            with open(INGESTED_FILES_PATH, "r") as f:
-                return json.load(f)
+            try:
+                with open(INGESTED_FILES_PATH, "r") as f:
+                    data = json.load(f)
+                    
+                # Support backwards compatibility: convert strings to proper dicts
+                normalized_data = []
+                for item in data:
+                    if isinstance(item, str):
+                        normalized_data.append({"name": item, "chunks": 0})
+                    elif isinstance(item, dict):
+                        normalized_data.append(item)
+                return normalized_data
+            except Exception as e:
+                print(f"[RAG_ENGINE] Error loading ingested files: {e}")
+                return []
         return []
 
     def _save_ingested_files(self):
@@ -36,27 +49,66 @@ class HybridRAGEngine:
 
     async def ingest_document(self, file_path: str, original_filename: str) -> dict:
         """
-        Ingest a document: extract text, chunk it, and index in both stores.
+        Ingest a document: extract text, calculate dynamic chunks, chunk it, and index in both stores.
         """
         print(f"\n[RAG_ENGINE] === Starting ingestion: {original_filename} ===")
 
         # Step 1: Extract text
-        print(f"[RAG_ENGINE] Step 1/4: Extracting text...")
+        print(f"[RAG_ENGINE] Step 1/5: Extracting text...")
         text = extract_text(file_path)
         if not text.strip():
             print(f"[RAG_ENGINE] ERROR: No text extracted")
             return {"status": "error", "message": "No text could be extracted from the file."}
-        print(f"[RAG_ENGINE] Step 1/4: DONE — {len(text)} chars extracted")
+        print(f"[RAG_ENGINE] Step 1/5: DONE — {len(text)} chars extracted")
 
-        # Step 2: Chunk the text
-        print(f"[RAG_ENGINE] Step 2/4: Chunking text...")
-        chunks = chunk_text(text, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP)
+        # Step 2: Prompt LLM for optimal chunk size
+        print(f"[RAG_ENGINE] Step 2/5: Calculating dynamic chunk size using LLM...")
+        total_chars = len(text)
+        total_words = len(text.split())
+        
+        prompt = f"""Analyze the following document statistics and determine the optimal chunk size and overlap (IN CHARACTERS) for a Retrieval-Augmented Generation (RAG) system.
+        
+Document Statistics:
+- Total Characters: {total_chars}
+- Total Words: {total_words}
+
+Important Context:
+- The embedding model has a STRICT context limit and the system RAM is heavily utilized by a 120B parameter model.
+- Large chunks (> 3000 characters) WILL cause a '500 Internal Server Error' (Out of Memory).
+- Default is chunk_size_chars=2000, overlap_chars=200.
+- For large documents (> 100,000 characters), keep the chunk size smaller (e.g., 1500-1800 characters) to ensure batch embedding succeeds without crashing.
+- For small documents, a chunk size up to 2500 characters is safe.
+
+Return ONLY a valid JSON object with EXACTLY two keys: "chunk_size_chars" (integer) and "overlap_chars" (integer).
+Example: {{"chunk_size_chars": 1500, "overlap_chars": 150}}
+"""
+        llm_response = await ask_llm_json(prompt)
+        
+        dynamic_chunk_size = llm_response.get("chunk_size_chars", 2000)
+        dynamic_overlap = llm_response.get("overlap_chars", 200)
+        
+        # Safe boundary conditions for Characters
+        if not isinstance(dynamic_chunk_size, int) or dynamic_chunk_size < 500 or dynamic_chunk_size > 3000:
+            dynamic_chunk_size = 2000
+        if not isinstance(dynamic_overlap, int) or dynamic_overlap < 50 or dynamic_overlap >= dynamic_chunk_size:
+            dynamic_overlap = 200
+            
+        print("\n" + "="*50)
+        print(f"[DYNAMIC VARS] CHUNK_SIZE_CHARS = {dynamic_chunk_size}")
+        print(f"[DYNAMIC VARS] OVERLAP_CHARS = {dynamic_overlap}")
+        print("="*50 + "\n")
+        
+        print(f"[RAG_ENGINE] Step 2/5: DONE — LLM selected chunk_size_chars={dynamic_chunk_size}, overlap_chars={dynamic_overlap}")
+
+        # Step 3: Chunk the text
+        print(f"[RAG_ENGINE] Step 3/5: Chunking text...")
+        chunks = chunk_text(text, chunk_size_chars=dynamic_chunk_size, overlap_chars=dynamic_overlap)
         if not chunks:
             print(f"[RAG_ENGINE] ERROR: No chunks generated")
             return {"status": "error", "message": "No chunks generated from the document."}
-        print(f"[RAG_ENGINE] Step 2/4: DONE — {len(chunks)} chunks created")
+        print(f"[RAG_ENGINE] Step 3/5: DONE — {len(chunks)} chunks created")
 
-        # Step 3: Prepare texts and metadata
+        # Step 4: Prepare texts and metadata
         texts = [c["text"] for c in chunks]
         metadatas = [
             {"source": original_filename, "chunk_id": c["id"]}
@@ -64,23 +116,46 @@ class HybridRAGEngine:
         ]
 
         # Step 4: Index in both stores
-        print(f"[RAG_ENGINE] Step 3/4: Generating embeddings & indexing in vector store...")
-        await self.vector_store.add_documents(texts, metadatas, original_filename)
-        print(f"[RAG_ENGINE] Step 3/4: DONE — Vector store indexed")
+        print(f"[RAG_ENGINE] Step 4/5: Generating embeddings & indexing in vector store...")
+        vector_stats = await self.vector_store.add_documents(texts, metadatas, original_filename)
+        print(f"[RAG_ENGINE] Step 4/5: DONE — Vector store indexed")
 
-        print(f"[RAG_ENGINE] Step 4/4: Indexing in BM25 store...")
+        print(f"[RAG_ENGINE] Step 5/5: Indexing in BM25 store...")
         self.bm25_store.add_documents(texts, metadatas)
-        print(f"[RAG_ENGINE] Step 4/4: DONE — BM25 store indexed")
+        print(f"[RAG_ENGINE] Step 5/5: DONE — BM25 store indexed")
 
-        self._ingested_files.append(original_filename)
+        # Check if file was previously ingested and update it, or append new
+        existing_file = next((f for f in self._ingested_files if f.get("name") == original_filename), None)
+        
+        vector_chunks = vector_stats.get("successful", 0)
+        skipped_chunks = vector_stats.get("skipped", 0)
+        bm25_chunks = len(chunks)
+        
+        if existing_file:
+            existing_file["vector_chunks"] = vector_chunks
+            existing_file["bm25_chunks"] = bm25_chunks
+            existing_file["skipped"] = skipped_chunks
+            # Remove legacy 'chunks' key if it exists
+            if "chunks" in existing_file:
+                del existing_file["chunks"]
+        else:
+            self._ingested_files.append({
+                "name": original_filename,
+                "vector_chunks": vector_chunks,
+                "bm25_chunks": bm25_chunks,
+                "skipped": skipped_chunks
+            })
+            
         self._save_ingested_files()
 
         print(f"[RAG_ENGINE] === Ingestion complete: {original_filename} ===")
         return {
             "status": "success",
-            "message": f"Ingested '{original_filename}' — {len(chunks)} chunks indexed.",
-            "chunks": len(chunks),
-            "filename": original_filename,
+            "message": f"Ingested '{original_filename}' - {vector_chunks} vector chunks and {bm25_chunks} BM25 chunks indexed.",
+            "vector_chunks": vector_chunks,
+            "bm25_chunks": bm25_chunks,
+            "skipped": skipped_chunks,
+            "filename": original_filename
         }
 
     async def query(self, user_query: str) -> dict:

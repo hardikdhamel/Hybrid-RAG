@@ -90,3 +90,34 @@ async def generate_response_stream(query: str, context_chunks: List[dict]):
                         yield data["response"]
                     if data.get("done", False):
                         break
+
+async def ask_llm_json(prompt: str) -> dict:
+    """Ask the LLM a question and expect a JSON response."""
+    import json
+    
+    print(f"[LLM] Sending JSON prompt to '{LLM_MODEL}' ({len(prompt)} chars)...")
+    async with httpx.AsyncClient(timeout=180.0) as client:
+        response = await client.post(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            json={
+                "model": LLM_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                # "format": "json" is supported by recent Ollama versions to guarantee JSON output
+                "format": "json",
+                "options": {
+                    "temperature": 0.1,  # Low temp for deterministic JSON
+                    "top_p": 0.9,
+                },
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+        answer = data["response"]
+        
+        try:
+            return json.loads(answer)
+        except json.JSONDecodeError as e:
+            print(f"[LLM] WARNING: Failed to parse JSON response: {answer}")
+            print(f"[LLM] Error: {e}")
+            return {}

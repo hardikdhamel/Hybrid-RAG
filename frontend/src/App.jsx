@@ -77,6 +77,7 @@ function App() {
   const [stats, setStats] = useState({ vector_count: 0, bm25_count: 0, ingested_files: [] });
   const [serverOnline, setServerOnline] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [expandedFile, setExpandedFile] = useState(null);
 
   const fileInputRef = useRef(null);
 
@@ -146,7 +147,9 @@ function App() {
               type: 'upload-success',
               id: uploadMsgId,
               filename: result.filename,
-              chunks: result.chunks,
+              vectorChunks: result.vector_chunks,
+              bm25Chunks: result.bm25_chunks,
+              skippedChunks: result.skipped,
             }
             : msg
         )
@@ -204,7 +207,7 @@ function App() {
     if (!window.confirm('Are you sure you want to clear all indexed data?')) return;
     try {
       await resetSystem();
-      setMessages([{ type: 'clear-success' }]);
+      setMessages([]);
       fetchStats();
     } catch (err) {
       setMessages((prev) => [
@@ -243,11 +246,45 @@ function App() {
             {stats.ingested_files.length === 0 ? (
               <p className="no-files">No files uploaded yet</p>
             ) : (
-              stats.ingested_files.map((file, i) => (
-                <div key={i} className="file-item">
-                  <FiFile /> <span>{file}</span>
-                </div>
-              ))
+              stats.ingested_files.map((file, i) => {
+                const isObject = typeof file === 'object' && file !== null;
+                const fileName = isObject ? file.name : file;
+                const vectorChunks = isObject ? (file.vector_chunks !== undefined ? file.vector_chunks : file.chunks) : null;
+                const bm25Chunks = isObject ? (file.bm25_chunks !== undefined ? file.bm25_chunks : file.chunks) : null;
+                const skippedChunks = isObject ? (file.skipped || 0) : 0;
+                const isExpanded = expandedFile === fileName;
+                const hasStats = vectorChunks !== null;
+
+                return (
+                  <div key={i} className="file-item-group">
+                    <div
+                      className={`file-item ${isExpanded ? 'expanded' : ''} ${hasStats ? 'clickable' : ''}`}
+                      onClick={() => hasStats && setExpandedFile(isExpanded ? null : fileName)}
+                    >
+                      <div className="file-item-main">
+                        <FiFile />
+                        <span className="file-name" title={fileName}>{fileName}</span>
+                      </div>
+                      {hasStats && (
+                        <span className="file-toggle-icon">{isExpanded ? '▼' : '▶'}</span>
+                      )}
+                    </div>
+                    {isExpanded && hasStats && (
+                      <div className="file-details">
+                        <div className="file-stat">
+                          <span className="file-stat-label">Vector Chunks:</span>
+                          <span className="file-stat-val">{vectorChunks}/{vectorChunks + skippedChunks}</span>
+                        </div>
+                        <div className="file-stat">
+                          <span className="file-stat-label">BM25 Chunks:</span>
+                          <span className="file-stat-val">{bm25Chunks}/{bm25Chunks + skippedChunks}</span>
+                        </div>
+
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
@@ -393,7 +430,10 @@ function App() {
                   </div>
                   <div className="upload-success-info">
                     <strong>{msg.filename}</strong> uploaded successfully
-                    <span className="upload-success-chunks">{msg.chunks} chunks indexed</span>
+                    <div className="upload-success-stats">
+                      <span className="upload-success-chunks">Vector: {msg.vectorChunks || 0}/{((msg.vectorChunks || 0) + (msg.skippedChunks || 0))}</span>
+                      <span className="upload-success-chunks">BM25: {msg.bm25Chunks || 0}/{((msg.bm25Chunks || 0) + (msg.skippedChunks || 0))}</span>
+                    </div>
                   </div>
                 </div>
               )}

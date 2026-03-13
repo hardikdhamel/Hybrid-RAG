@@ -31,15 +31,16 @@ engine = HybridRAGEngine()
 @app.on_event("startup")
 async def warmup_ollama():
     """Warm up Ollama embedding model on server start to avoid 500 errors on first upload."""
-    from config import OLLAMA_BASE_URL, EMBEDDING_MODEL
+    from config import OLLAMA_EMBEDDING_BASE_URL, EMBEDDING_MODEL
     import httpx
 
-    print(f"\n[WARMUP] Warming up Ollama embedding model '{EMBEDDING_MODEL}'...")
+    print(f"\n[WARMUP] Warming up Ollama embedding model '{EMBEDDING_MODEL}' on '{OLLAMA_EMBEDDING_BASE_URL}'...")
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
-                f"{OLLAMA_BASE_URL}/api/embeddings",
+                f"{OLLAMA_EMBEDDING_BASE_URL}/api/embeddings",
                 json={"model": EMBEDDING_MODEL, "prompt": "warmup test"},
+                headers={"ngrok-skip-browser-warning": "69420"},
             )
             if response.status_code == 200:
                 print(f"[WARMUP] ✓ Ollama embedding model is ready!")
