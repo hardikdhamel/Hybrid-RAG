@@ -74,22 +74,22 @@ Document Statistics:
 
 Important Context:
 - The embedding model has a STRICT context limit and the system RAM is heavily utilized by a 120B parameter model.
-- Large chunks WILL cause an Out Of Memory '500 Internal Server Error' on our limited GPU.
-- Absolute maximum safely allowed chunk size is 1500 characters.
-- Default is chunk_size_chars=1200, overlap_chars=150.
-- For all documents, keep the chunk size smaller (e.g., 1000-1500 characters) to ensure batch embedding succeeds without crashing.
+- Large chunks (> 3000 characters) WILL cause a '500 Internal Server Error' (Out of Memory).
+- Default is chunk_size_chars=2000, overlap_chars=200.
+- For large documents (> 100,000 characters), keep the chunk size smaller (e.g., 1500-1800 characters) to ensure batch embedding succeeds without crashing.
+- For small documents, a chunk size up to 2500 characters is safe.
 
 Return ONLY a valid JSON object with EXACTLY two keys: "chunk_size_chars" (integer) and "overlap_chars" (integer).
-Example: {{"chunk_size_chars": 1200, "overlap_chars": 150}}
+Example: {{"chunk_size_chars": 1500, "overlap_chars": 150}}
 """
         llm_response = await ask_llm_json(prompt)
         
-        dynamic_chunk_size = llm_response.get("chunk_size_chars", 1500)
-        dynamic_overlap = llm_response.get("overlap_chars", 150)
+        dynamic_chunk_size = llm_response.get("chunk_size_chars", 2000)
+        dynamic_overlap = llm_response.get("overlap_chars", 200)
         
         # Safe boundary conditions for Characters
-        if not isinstance(dynamic_chunk_size, int) or dynamic_chunk_size < 500 or dynamic_chunk_size > 1500:
-            dynamic_chunk_size = 1500
+        if not isinstance(dynamic_chunk_size, int) or dynamic_chunk_size < 500 or dynamic_chunk_size > 3000:
+            dynamic_chunk_size = 2000
         if not isinstance(dynamic_overlap, int) or dynamic_overlap < 50 or dynamic_overlap >= dynamic_chunk_size:
             dynamic_overlap = 200
             

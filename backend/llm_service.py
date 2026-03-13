@@ -54,12 +54,26 @@ async def generate_response(query: str, context_chunks: List[dict]) -> str:
         response.raise_for_status()
         data = response.json()
         answer = data["response"]
-        # Print LLM timing if available
+        
+        # Extract Token & Timing stats from Ollama response
+        prompt_tokens = data.get("prompt_eval_count", 0)
+        output_tokens = data.get("eval_count", 0)
+        total_tokens = prompt_tokens + output_tokens
+        
+        print("\n" + "="*50)
+        print(f"[LLM STATS] Model: {LLM_MODEL}")
+        print(f"[LLM STATS] Input Tokens (Prompt): {prompt_tokens}")
+        print(f"[LLM STATS] Output Tokens (Answer): {output_tokens}")
+        print(f"[LLM STATS] Total Tokens: {total_tokens}")
+        
         if "total_duration" in data:
             duration_sec = data["total_duration"] / 1e9
-            print(f"[LLM] Response received in {duration_sec:.2f}s ({len(answer)} chars)")
-        else:
-            print(f"[LLM] Response received ({len(answer)} chars)")
+            print(f"[LLM STATS] Total Time: {duration_sec:.2f}s")
+            if output_tokens > 0:
+                tokens_per_sec = output_tokens / (data.get("eval_duration", 1) / 1e9)
+                print(f"[LLM STATS] Generation Speed: {tokens_per_sec:.2f} tokens/sec")
+        print("="*50 + "\n")
+        
         return answer
 
 
