@@ -4,7 +4,7 @@ import os
 
 # Ollama settings
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_EMBEDDING_BASE_URL = os.getenv("OLLAMA_EMBEDDING_BASE_URL", "https://4b57-34-82-65-55.ngrok-free.app")
+OLLAMA_EMBEDDING_BASE_URL = os.getenv("OLLAMA_EMBEDDING_BASE_URL", "https://4ecd-35-247-146-138.ngrok-free.app")
 LLM_MODEL = os.getenv("LLM_MODEL", "gpt-oss:120b-cloud")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text:latest")
 
@@ -19,6 +19,7 @@ FINAL_TOP_K = 5
 
 # ChromaDB settings
 CHROMA_PERSIST_DIR = os.path.join(os.path.dirname(__file__), "chroma_db")
+TOKEN_STATS_PATH = os.path.join(CHROMA_PERSIST_DIR, "token_stats.json")
 
 # Upload directory
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "uploads")

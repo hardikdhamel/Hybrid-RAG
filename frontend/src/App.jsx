@@ -192,6 +192,7 @@ function App() {
           retrieval_info: result.retrieval_info,
         },
       ]);
+      fetchStats();
     } catch (err) {
       const detail = err.response?.data?.detail || err.message;
       setMessages((prev) => [
@@ -286,6 +287,20 @@ function App() {
                 );
               })
             )}
+          </div>
+        </div>
+
+        <div className="sidebar-section">
+          <h3><FiCpu /> Token Usage</h3>
+          <div className="stats-grid">
+            <div className="stat-item">
+              <span className="stat-value">{stats.token_stats?.min_total_tokens !== null ? stats.token_stats?.min_total_tokens : '—'}</span>
+              <span className="stat-label">Min Total Tokens</span>
+            </div>
+            <div className="stat-item">
+              <span className="stat-value">{stats.token_stats?.max_total_tokens || 0}</span>
+              <span className="stat-label">Max Total Tokens</span>
+            </div>
           </div>
         </div>
 

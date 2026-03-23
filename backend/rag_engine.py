@@ -9,7 +9,7 @@ from bm25_store import BM25Store
 from reranker import reciprocal_rank_fusion
 from llm_service import generate_response, generate_response_stream, ask_llm_json
 from document_loader import extract_text, chunk_text
-from config import CHUNK_SIZE, CHUNK_OVERLAP, FINAL_TOP_K, UPLOAD_DIR, CHROMA_PERSIST_DIR
+from config import CHUNK_SIZE, CHUNK_OVERLAP, FINAL_TOP_K, UPLOAD_DIR, CHROMA_PERSIST_DIR, TOKEN_STATS_PATH
 
 INGESTED_FILES_PATH = os.path.join(CHROMA_PERSIST_DIR, "ingested_files.json")
 
@@ -20,7 +20,8 @@ class HybridRAGEngine:
     def __init__(self):
         self.vector_store = VectorStore()
         self.bm25_store = BM25Store()
-        self._ingested_files: List[str] = self._load_ingested_files()
+        self._ingested_files: List[dict] = self._load_ingested_files()
+        self._token_stats = self._load_token_stats()
 
     def _load_ingested_files(self) -> List[dict]:
         """Load previously ingested file names from disk."""
@@ -46,6 +47,41 @@ class HybridRAGEngine:
         """Persist ingested file names to disk."""
         with open(INGESTED_FILES_PATH, "w") as f:
             json.dump(self._ingested_files, f)
+
+    def _load_token_stats(self) -> dict:
+        """Load min/max token stats from disk."""
+        default_stats = {"min_total_tokens": None, "max_total_tokens": 0}
+        if os.path.exists(TOKEN_STATS_PATH):
+            try:
+                with open(TOKEN_STATS_PATH, "r") as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"[RAG_ENGINE] Error loading token stats: {e}")
+                return default_stats
+        return default_stats
+
+    def _save_token_stats(self):
+        """Persist token stats to disk."""
+        with open(TOKEN_STATS_PATH, "w") as f:
+            json.dump(self._token_stats, f)
+
+    def _update_token_stats(self, total_tokens: int):
+        """Update min/max total tokens if necessary."""
+        updated = False
+        
+        # Update Min
+        if self._token_stats["min_total_tokens"] is None or total_tokens < self._token_stats["min_total_tokens"]:
+            self._token_stats["min_total_tokens"] = total_tokens
+            updated = True
+            
+        # Update Max
+        if total_tokens > self._token_stats["max_total_tokens"]:
+            self._token_stats["max_total_tokens"] = total_tokens
+            updated = True
+            
+        if updated:
+            self._save_token_stats()
+            print(f"[RAG_ENGINE] Token stats updated: {self._token_stats}")
 
     async def ingest_document(self, file_path: str, original_filename: str) -> dict:
         """
@@ -213,8 +249,14 @@ Example: {{"chunk_size_chars": 1500, "overlap_chars": 150}}
 
         # Step 3: Generate answer with LLM
         print(f"[RAG_ENGINE] Step 3/4: Sending {len(fused_results)} chunks to LLM for answer generation...")
-        answer = await generate_response(user_query, fused_results)
+        llm_result = await generate_response(user_query, fused_results)
+        answer = llm_result["answer"]
+        tokens = llm_result["tokens"]
+        
         print(f"[RAG_ENGINE] Step 3/4: DONE — LLM generated {len(answer)} chars")
+        
+        # Update token stats
+        self._update_token_stats(tokens["total"])
 
         # Step 4: Prepare source citations
         print(f"[RAG_ENGINE] Step 4/4: Preparing source citations...")
@@ -241,6 +283,7 @@ Example: {{"chunk_size_chars": 1500, "overlap_chars": 150}}
                 "bm25_results": len(bm25_results),
                 "fused_results": len(fused_results),
             },
+            "tokens": tokens
         }
 
     async def query_stream(self, user_query: str):
@@ -260,8 +303,13 @@ Example: {{"chunk_size_chars": 1500, "overlap_chars": 150}}
             return
 
         # Stream LLM response
-        async for token in generate_response_stream(user_query, fused_results):
-            yield {"type": "token", "content": token}
+        async for item in generate_response_stream(user_query, fused_results):
+            if isinstance(item, str):
+                yield {"type": "token", "content": item}
+            elif isinstance(item, dict) and item.get("type") == "tokens":
+                tokens = item["content"]
+                self._update_token_stats(tokens["total"])
+                yield item
 
         # Send sources at the end
         sources = []
@@ -283,6 +331,7 @@ Example: {{"chunk_size_chars": 1500, "overlap_chars": 150}}
             "vector_count": self.vector_store.get_doc_count(),
             "bm25_count": self.bm25_store.get_doc_count(),
             "ingested_files": self._ingested_files,
+            "token_stats": self._token_stats
         }
 
     def reset(self):
@@ -290,4 +339,6 @@ Example: {{"chunk_size_chars": 1500, "overlap_chars": 150}}
         self.vector_store.delete_collection()
         self.bm25_store.clear()
         self._ingested_files = []
+        self._token_stats = {"min_total_tokens": None, "max_total_tokens": 0}
         self._save_ingested_files()
+        self._save_token_stats()

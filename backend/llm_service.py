@@ -32,7 +32,7 @@ USER QUESTION: {query}
 ANSWER:"""
 
 
-async def generate_response(query: str, context_chunks: List[dict]) -> str:
+async def generate_response(query: str, context_chunks: List[dict]) -> dict:
     """Generate a response using the LLM with the retrieved context."""
     prompt = build_prompt(query, context_chunks)
     print(f"[LLM] Sending prompt to '{LLM_MODEL}' ({len(prompt)} chars, {len(context_chunks)} context chunks)...")
@@ -74,7 +74,14 @@ async def generate_response(query: str, context_chunks: List[dict]) -> str:
                 print(f"[LLM STATS] Generation Speed: {tokens_per_sec:.2f} tokens/sec")
         print("="*50 + "\n")
         
-        return answer
+        return {
+            "answer": answer,
+            "tokens": {
+                "prompt": prompt_tokens,
+                "output": output_tokens,
+                "total": total_tokens
+            }
+        }
 
 
 async def generate_response_stream(query: str, context_chunks: List[dict]):
@@ -103,6 +110,15 @@ async def generate_response_stream(query: str, context_chunks: List[dict]):
                     if "response" in data:
                         yield data["response"]
                     if data.get("done", False):
+                        # Yield token stats at the end
+                        yield {
+                            "type": "tokens",
+                            "content": {
+                                "prompt": data.get("prompt_eval_count", 0),
+                                "output": data.get("eval_count", 0),
+                                "total": data.get("prompt_eval_count", 0) + data.get("eval_count", 0)
+                            }
+                        }
                         break
 
 async def ask_llm_json(prompt: str) -> dict:
